@@ -3,164 +3,518 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4-Channel Switching Array - Digital Twin Dashboard</title>
-    <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <!-- Three.js for 3D Motor Visualization -->
+    <title>Arduino Uno + 4-Channel IRFZ44N Digital Twin</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- Chart.js for Telemetry Graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0b0f19;
+            --panel-bg: #111827;
+            --border-color: #1f2937;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: var(--bg-dark); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        header {
+            background: var(--panel-bg); border-bottom: 1px solid var(--border-color);
+            padding: 12px 24px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .title-group h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: 0.5px; }
+        .title-group span { font-size: 0.8rem; color: var(--text-muted); }
+        .header-actions { display: flex; gap: 12px; align-items: center; }
+        .status-badge {
+            padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;
+            background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green);
+        }
+        .btn-connect {
+            background: var(--accent-blue); color: white; border: none; padding: 8px 16px;
+            border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; transition: 0.2s;
+        }
+        .btn-connect:hover { background: #2563eb; }
+
+        .main-grid {
+            display: grid; grid-template-columns: 320px 1fr 360px; gap: 16px;
+            padding: 16px; height: calc(100vh - 60px);
+        }
+        .panel {
+            background: var(--panel-bg); border: 1px solid var(--border-color);
+            border-radius: 10px; padding: 16px; display: flex; flex-direction: column; overflow-y: auto;
+        }
+        .panel-title {
+            font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--text-muted); margin-bottom: 14px; font-weight: 700;
+            border-bottom: 1px solid var(--border-color); padding-bottom: 8px;
+        }
+
+        .control-group { margin-bottom: 18px; }
+        .control-header { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; }
+        input[type="range"] { width: 100%; accent-color: var(--accent-blue); cursor: pointer; }
+        
+        .channel-card {
+            background: #1a2234; border: 1px solid #2d3748; border-radius: 8px;
+            padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .channel-info h4 { font-size: 0.9rem; margin-bottom: 2px; }
+        .channel-info p { font-size: 0.75rem; color: var(--text-muted); }
+        
+        .switch { position: relative; display: inline-block; width: 46px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #374151; transition: .3s; border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+            background-color: white; transition: .3s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--accent-green); }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        .viewport-container { position: relative; padding: 0; overflow: hidden; }
+        #canvas-3d { width: 100%; height: 100%; display: block; }
+        .viewport-overlay {
+            position: absolute; bottom: 12px; left: 12px; background: rgba(17, 24, 39, 0.85);
+            padding: 8px 12px; border-radius: 6px; font-size: 0.75rem; color: var(--text-muted);
+            border: 1px solid var(--border-color); pointer-events: none;
+        }
+
+        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .kpi-card { background: #1a2234; padding: 12px; border-radius: 8px; border: 1px solid #2d3748; }
+        .kpi-label { font-size: 0.75rem; color: var(--text-muted); }
+        .kpi-value { font-size: 1.3rem; font-weight: 700; margin-top: 4px; color: var(--accent-blue); }
+        .chart-box { flex: 1; min-height: 180px; position: relative; margin-bottom: 12px; }
+        .serial-log {
+            background: #070a11; border: 1px solid #1f2937; border-radius: 6px;
+            padding: 8px; font-family: monospace; font-size: 0.72rem; height: 90px;
+            overflow-y: auto; color: #10b981;
+        }
+    </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans min-h-screen p-6">
+<body>
 
-    <!-- Header -->
-    <header class="flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
-        <div>
-            <h1 class="text-2xl font-bold tracking-wider text-cyan-400">DIGITAL TWIN TELEMETRY DASHBOARD</h1>
-            <p class="text-xs text-slate-400">4-Channel Low-Side Switching Array (IRFZ44N MOSFETs)</p>
-        </div>
-        <div class="flex items-center gap-3">
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <span class="w-2 h-2 mr-2 bg-emerald-500 rounded-full animate-pulse"></span> SYSTEM LIVE
-            </span>
-        </div>
-    </header>
+<header>
+    <div class="title-group">
+        <h1>ARDUINO UNO + 4-CHANNEL IRFZ44N DIGITAL TWIN</h1>
+        <span>Low-Side Power Switching Array Telemetry Dashboard</span>
+    </div>
+    <div class="header-actions">
+        <span id="mode-badge" class="status-badge">● SIMULATION MODE ACTIVE</span>
+        <button id="connect-serial" class="btn-connect">🔌 Connect Arduino (USB)</button>
+    </div>
+</header>
 
-    <!-- Main Grid Layout -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        <!-- Left Column: 3D Component Twin -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col items-center justify-between relative shadow-xl">
-            <h2 class="text-sm font-semibold text-slate-300 w-full text-left mb-2">3D COMPONENT RENDERING (MOTOR TWIN)</h2>
-            <div id="canvas-container" class="w-full h-64 rounded-lg overflow-hidden bg-slate-950/50"></div>
-            <p class="text-xs text-slate-500 mt-2 text-center">Interactive 3D Simulation of Inductive Load Assembly</p>
-        </div>
-
-        <!-- Middle Column: Real-Time Metrics & Gauges -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-xl">
-            <h2 class="text-sm font-semibold text-slate-300 mb-4">SYSTEM TELEMETRY METRICS</h2>
-            <div class="grid grid-cols-2 gap-4">
-                <div class="bg-slate-950 p-4 rounded-lg border border-slate-800">
-                    <span class="text-xs text-slate-400">Bus Voltage</span>
-                    <p class="text-2xl font-bold text-cyan-400 mt-1">12.0 <span class="text-xs text-slate-400">V</span></p>
-                </div>
-                <div class="bg-slate-950 p-4 rounded-lg border border-slate-800">
-                    <span class="text-xs text-slate-400">Current Draw</span>
-                    <p id="current-metric" class="text-2xl font-bold text-amber-400 mt-1">320 <span class="text-xs text-slate-400">mA</span></p>
-                </div>
-                <div class="bg-slate-950 p-4 rounded-lg border border-slate-800">
-                    <span class="text-xs text-slate-400">MOSFET Temp</span>
-                    <p class="text-2xl font-bold text-emerald-400 mt-1">34.5 <span class="text-xs text-slate-400">°C</span></p>
-                </div>
-                <div class="bg-slate-950 p-4 rounded-lg border border-slate-800">
-                    <span class="text-xs text-slate-400">Active Duty</span>
-                    <p class="text-2xl font-bold text-indigo-400 mt-1">75.0 <span class="text-xs text-slate-400">%</span></p>
-                </div>
+<div class="main-grid">
+    <!-- Left Panel: Controls -->
+    <div class="panel">
+        <div class="panel-title">PWM & Supply Controls</div>
+        
+        <div class="control-group">
+            <div class="control-header">
+                <span>Supply Bus Voltage (V<sub>CC</sub>)</span>
+                <strong id="vdd-val">12.0 V</strong>
             </div>
-            
-            <!-- Channel Toggles / Status -->
-            <div class="mt-4 pt-4 border-t border-slate-800 grid grid-cols-2 gap-2 text-xs">
-                <div class="flex items-center justify-between bg-slate-950 p-2 rounded border border-slate-800">
-                    <span>CH1 (Motor 1)</span>
-                    <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-                </div>
-                <div class="flex items-center justify-between bg-slate-950 p-2 rounded border border-slate-800">
-                    <span>CH2 (Motor 2)</span>
-                    <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-                </div>
-                <div class="flex items-center justify-between bg-slate-950 p-2 rounded border border-slate-800">
-                    <span>CH3 (LED 1)</span>
-                    <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-                </div>
-                <div class="flex items-center justify-between bg-slate-950 p-2 rounded border border-slate-800">
-                    <span>CH4 (LED 2)</span>
-                    <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-                </div>
-            </div>
+            <input type="range" id="vdd-slider" min="5" max="24" step="0.5" value="12">
         </div>
 
-        <!-- Right Column: Live Chart.js Telemetry Graph -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-xl">
-            <h2 class="text-sm font-semibold text-slate-300 mb-2">LIVE CURRENT STREAM (mA)</h2>
-            <div class="relative w-full h-64 flex items-center justify-center">
-                <canvas id="telemetryChart"></canvas>
+        <div class="control-group">
+            <div class="control-header">
+                <span>Arduino PWM Duty Cycle (Pin 3/5/6/9)</span>
+                <strong id="pwm-val">75 %</strong>
             </div>
-            <p class="text-xs text-slate-500 mt-2 text-center">Real-time serial stream visualization</p>
+            <input type="range" id="pwm-slider" min="0" max="100" step="1" value="75">
         </div>
 
+        <div class="panel-title" style="margin-top: 8px;">IRFZ44N MOSFET Channels</div>
+        <div id="channel-controls"></div>
+
+        <div class="panel-title" style="margin-top: 12px;">Arduino Serial Monitor Log</div>
+        <div class="serial-log" id="serial-log">
+            > System initialized.<br>
+            > Ready for Arduino Uno serial stream...
+        </div>
     </div>
 
-    <!-- Script to run Three.js 3D Motor & Chart.js Live Graph -->
-    <script>
-        // --- 3D SCENE SETUP (THREE.JS) ---
-        const container = document.getElementById('canvas-container');
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    <!-- Center Panel: 3D Hardware Model (Arduino Uno + MOSFET Array) -->
+    <div class="panel viewport-container">
+        <div id="canvas-3d"></div>
+        <div class="viewport-overlay">
+            🖱️ Left-Click: Rotate | Right-Click: Pan | Scroll: Zoom | Visualizing Arduino Uno & MOSFET Power Stage
+        </div>
+    </div>
+
+    <!-- Right Panel: Telemetry -->
+    <div class="panel">
+        <div class="panel-title">Electrical & Thermal Metrics</div>
         
-        renderer.setSize(container.clientWidth, container.clientHeight);
-        container.appendChild(renderer.domElement);
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Total Drain Current</div>
+                <div class="kpi-value" id="kpi-current">0.00 A</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Total Power Dissipation</div>
+                <div class="kpi-value" id="kpi-power" style="color: var(--accent-amber);">0.0 W</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Max MOSFET Temp</div>
+                <div class="kpi-value" id="kpi-temp" style="color: var(--accent-green);">28.5 °C</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Conduction Loss (R<sub>DS</sub>)</div>
+                <div class="kpi-value" id="kpi-loss" style="color: #a855f7;">0.00 W</div>
+            </div>
+        </div>
 
-        // Add lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        scene.add(ambientLight);
-        const pointLight = new THREE.PointLight(0x06b6d4, 2);
-        pointLight.position.set(5, 5, 5);
-        scene.add(pointLight);
+        <div class="panel-title">Real-Time Waveform</div>
+        <div class="chart-box">
+            <canvas id="telemetryChart"></canvas>
+        </div>
 
-        // Create a 3D Motor Cylinder representation
-        const geometry = new THREE.CylinderGeometry(1, 1, 2.2, 32);
-        const material = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, metalness: 0.8, roughness: 0.2 });
-        const motorMesh = new THREE.Mesh(geometry, material);
-        scene.add(motorMesh);
+        <div class="panel-title">Channel Current Distribution</div>
+        <div class="chart-box">
+            <canvas id="barChart"></canvas>
+        </div>
+    </div>
+</div>
 
-        camera.position.z = 4.5;
+<script>
+    const state = {
+        vdd: 12.0,
+        pwm: 75,
+        isHardwareConnected: false,
+        serialWriter: null,
+        channels: [
+            { id: 1, name: "CH1: Load 1 (Motor)", loadResistance: 6.0, active: true, current: 0, temp: 28 },
+            { id: 2, name: "CH2: Load 2 (Fan)", loadResistance: 6.0, active: true, current: 0, temp: 28 },
+            { id: 3, name: "CH3: Load 3 (Solenoid)", loadResistance: 8.0, active: false, current: 0, temp: 27 },
+            { id: 4, name: "CH4: Load 4 (Heater)", loadResistance: 10.0, active: true, current: 0, temp: 28 }
+        ]
+    };
 
-        // Animation loop for rotating 3D motor
-        function animate3D() {
-            requestAnimationFrame(animate3D);
-            motorMesh.rotation.x += 0.01;
-            motorMesh.rotation.y += 0.015;
-            renderer.render(scene, camera);
+    const channelContainer = document.getElementById('channel-controls');
+    state.channels.forEach((ch, idx) => {
+        const card = document.createElement('div');
+        card.className = 'channel-card';
+        card.innerHTML = `
+            <div class="channel-info">
+                <h4>${ch.name}</h4>
+                <p id="ch-stats-${idx}">0.00 A | 28.0 °C</p>
+            </div>
+            <label class="switch">
+                <input type="checkbox" ${ch.active ? 'checked' : ''} onchange="toggleChannel(${idx}, this.checked)">
+                <span class="slider"></span>
+            </label>
+        `;
+        channelContainer.appendChild(card);
+    });
+
+    function toggleChannel(idx, isChecked) {
+        state.channels[idx].active = isChecked;
+        logSerial(`Arduino Command -> CH${idx + 1} set to ${isChecked ? 'HIGH' : 'LOW'}`);
+        sendSerialCommand();
+    }
+
+    document.getElementById('vdd-slider').addEventListener('input', (e) => {
+        state.vdd = parseFloat(e.target.value);
+        document.getElementById('vdd-val').textContent = `${state.vdd.toFixed(1)} V`;
+    });
+
+    document.getElementById('pwm-slider').addEventListener('input', (e) => {
+        state.pwm = parseInt(e.target.value);
+        document.getElementById('pwm-val').textContent = `${state.pwm} %`;
+        sendSerialCommand();
+    });
+
+    function logSerial(msg) {
+        const log = document.getElementById('serial-log');
+        log.innerHTML += `<br>> ${msg}`;
+        log.scrollTop = log.scrollHeight;
+    }
+
+    // --- WEB SERIAL FOR ARDUINO UNO ---
+    document.getElementById('connect-serial').addEventListener('click', async () => {
+        if (!("serial" in navigator)) {
+            alert("Web Serial API not supported. Use Google Chrome or MS Edge.");
+            return;
         }
-        animate3D();
+        try {
+            const port = await navigator.serial.requestPort();
+            await port.open({ baudRate: 9600 }); // Standard Arduino baud rate
+            state.isHardwareConnected = true;
+            
+            const badge = document.getElementById('mode-badge');
+            badge.textContent = "● ARDUINO UNO CONNECTED";
+            badge.style.borderColor = "#3b82f6";
+            badge.style.color = "#3b82f6";
+            logSerial("Connected to Arduino Uno via USB Serial!");
 
-        // --- REAL-TIME CHART SETUP (CHART.JS) ---
-        const ctx = document.getElementById('telemetryChart').getContext('2d');
-        const telemetryChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: Array.from({length: 15}, (_, i) => i + 1),
-                datasets: [{
-                    label: 'Current (mA)',
-                    data: [300, 310, 325, 315, 340, 330, 320, 325, 335, 345, 320, 310, 325, 330, 320],
-                    borderColor: '#06b6d4',
-                    backgroundColor: 'rgba(6, 182, 212, 0.1)',
-                    borderWidth: 2,
-                    fill: true,
-                    tension: 0.3
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
-                    x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
-                },
-                plugins: { legend: { display: false } }
+            const textEncoder = new TextEncoderStream();
+            textEncoder.readable.pipeTo(port.writable);
+            state.serialWriter = textEncoder.writable.getWriter();
+
+            const textDecoder = new TextDecoderStream();
+            port.readable.pipeTo(textDecoder.writable);
+            const reader = textDecoder.readable.getReader();
+
+            let buffer = "";
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += value;
+                const lines = buffer.split("\n");
+                buffer = lines.pop();
+                for (const line of lines) {
+                    try {
+                        const data = JSON.parse(line.trim());
+                        if (data.v) state.vdd = data.v;
+                        if (data.c && data.t) {
+                            state.channels.forEach((ch, i) => {
+                                ch.current = data.c[i] ?? ch.current;
+                                ch.temp = data.t[i] ?? ch.temp;
+                            });
+                        }
+                    } catch (err) {}
+                }
+            }
+        } catch (err) {
+            logSerial("Serial connection failed or cancelled.");
+        }
+    });
+
+    async function sendSerialCommand() {
+        if (state.serialWriter) {
+            const mask = state.channels.map(c => c.active ? 1 : 0).join(",");
+            await state.serialWriter.write(`P:${state.pwm},C:${mask}\n`);
+        }
+    }
+
+    // --- THREE.JS HARDWARE SCENE (ARDUINO UNO + MOSFET MODULE) ---
+    const container = document.getElementById('canvas-3d');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0f19);
+
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+    camera.position.set(-2, 10, 13);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    dirLight.position.set(10, 20, 10);
+    scene.add(dirLight);
+
+    // 1. ARDUINO UNO BOARD (Classic Blue PCB)
+    const unoGeo = new THREE.BoxGeometry(4.5, 0.2, 3.4);
+    const unoMat = new THREE.MeshStandardMaterial({ color: 0x006699, roughness: 0.5 });
+    const unoBoard = new THREE.Mesh(unoGeo, unoMat);
+    unoBoard.position.set(-3.5, 0.1, 0);
+    scene.add(unoBoard);
+
+    // ATmega328P Chip on Arduino
+    const mcuChipGeo = new THREE.BoxGeometry(1.2, 0.1, 1.2);
+    const mcuChipMat = new THREE.MeshStandardMaterial({ color: 0x111827 });
+    const mcuChip = new THREE.Mesh(mcuChipGeo, mcuChipMat);
+    mcuChip.position.set(-3.5, 0.22, 0);
+    scene.add(mcuChip);
+
+    // USB Jack & Power Barrel Jack on Uno
+    const usbGeo = new THREE.BoxGeometry(0.8, 0.4, 0.8);
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.9 });
+    const usbJack = new THREE.Mesh(usbGeo, metalMat);
+    usbJack.position.set(-5.3, 0.3, -0.9);
+    scene.add(usbJack);
+
+    const barrelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.7, 16);
+    const barrel = new THREE.Mesh(barrelGeo, new THREE.MeshStandardMaterial({ color: 0x1f2937 }));
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(-5.3, 0.3, 0.9);
+    scene.add(barrel);
+
+    // 2. 4-CHANNEL MOSFET DRIVER ARRAY BOARD (Black PCB)
+    const mosfetPcbGeo = new THREE.BoxGeometry(4.8, 0.2, 6.2);
+    const mosfetPcbMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.4 });
+    const mosfetPcb = new THREE.Mesh(mosfetPcbGeo, mosfetPcbMat);
+    mosfetPcb.position.set(2.2, 0.1, 0);
+    scene.add(mosfetPcb);
+
+    const mosfetTabs = [];
+    const statusLeds = [];
+    const loadRotors = [];
+    const jumperWires = [];
+
+    // Build 4 IRFZ44N MOSFETs + Terminal Blocks + Loads
+    for (let i = 0; i < 4; i++) {
+        const zPos = -1.9 + i * 1.25;
+
+        // Jumper Wire from Arduino to MOSFET Gate
+        const curve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(-1.3, 0.2, -1.2 + i * 0.5),
+            new THREE.Vector3(0.0, 1.2, -0.5 + i * 0.3),
+            new THREE.Vector3(0.5, 0.25, zPos - 0.3)
+        ]);
+        const wireGeo = new THREE.TubeGeometry(curve, 20, 0.03, 8, false);
+        const wireColors = [0xef4444, 0x3b82f6, 0xf59e0b, 0x10b981];
+        const wireMat = new THREE.MeshStandardMaterial({ color: wireColors[i] });
+        const wire = new THREE.Mesh(wireGeo, wireMat);
+        scene.add(wire);
+
+        // TO-220 MOSFET Package (Black Body)
+        const bodyGeo = new THREE.BoxGeometry(0.4, 0.85, 0.9);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1f2937 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.set(1.5, 0.65, zPos);
+        scene.add(body);
+
+        // Metallic Heatsink Tab (Dynamic Thermal Color)
+        const tabGeo = new THREE.BoxGeometry(0.12, 1.2, 0.9);
+        const tabMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.85, roughness: 0.2 });
+        const tab = new THREE.Mesh(tabGeo, tabMat);
+        tab.position.set(1.75, 0.8, zPos);
+        scene.add(tab);
+        mosfetTabs.push(tab);
+
+        // Gate Status LED
+        const ledGeo = new THREE.SphereGeometry(0.1, 16, 16);
+        const ledMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x000000 });
+        const led = new THREE.Mesh(ledGeo, ledMat);
+        led.position.set(0.6, 0.25, zPos);
+        scene.add(led);
+        statusLeds.push(led);
+
+        // Load Actuator / Motor / Fan on the Right
+        const loadHousing = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.55, 0.55, 0.3, 24),
+            new THREE.MeshStandardMaterial({ color: 0x374151 })
+        );
+        loadHousing.position.set(4.8, 0.3, zPos);
+        scene.add(loadHousing);
+
+        const rotorGroup = new THREE.Group();
+        rotorGroup.position.set(4.8, 0.46, zPos);
+        const bladeMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
+        for (let b = 0; b < 4; b++) {
+            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.03, 0.14), bladeMat);
+            blade.rotation.y = (b * Math.PI) / 4;
+            rotorGroup.add(blade);
+        }
+        scene.add(rotorGroup);
+        loadRotors.push(rotorGroup);
+    }
+
+    // --- CHARTS ---
+    const ctxLine = document.getElementById('telemetryChart').getContext('2d');
+    const telemetryChart = new Chart(ctxLine, {
+        type: 'line',
+        data: {
+            labels: Array(20).fill(''),
+            datasets: [
+                { label: 'Total Current (A)', data: Array(20).fill(0), borderColor: '#3b82f6', tension: 0.3, fill: false },
+                { label: 'Max Temp (°C)', data: Array(20).fill(28), borderColor: '#ef4444', tension: 0.3, fill: false }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            scales: { y: { grid: { color: '#1f2937' } }, x: { display: false } },
+            plugins: { legend: { labels: { color: '#9ca3af', boxWidth: 12 } } }
+        }
+    });
+
+    const ctxBar = document.getElementById('barChart').getContext('2d');
+    const barChart = new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+            labels: ['CH1', 'CH2', 'CH3', 'CH4'],
+            datasets: [{
+                label: 'Current (A)',
+                data: [0, 0, 0, 0],
+                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#a855f7']
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            scales: { y: { beginAtZero: true, max: 5, grid: { color: '#1f2937' } }, x: { grid: { display: false } } },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // --- ANIMATION LOOP ---
+    let lastChartUpdate = 0;
+
+    function animate(time) {
+        requestAnimationFrame(animate);
+        controls.update();
+
+        let totalCurrent = 0;
+        let maxTemp = 27.0;
+        let totalRdsLoss = 0;
+        const rdsOn = 0.0175;
+        const duty = state.pwm / 100;
+
+        state.channels.forEach((ch, i) => {
+            if (!state.isHardwareConnected) {
+                const targetCurrent = ch.active ? (state.vdd / ch.loadResistance) * duty : 0;
+                ch.current += (targetCurrent - ch.current) * 0.15;
+                const powerLoss = Math.pow(ch.current, 2) * rdsOn * 25;
+                const targetTemp = 27.5 + powerLoss * 18;
+                ch.temp += (targetTemp - ch.temp) * 0.05;
+            }
+
+            totalCurrent += ch.current;
+            if (ch.temp > maxTemp) maxTemp = ch.temp;
+            totalRdsLoss += Math.pow(ch.current, 2) * rdsOn;
+
+            document.getElementById(`ch-stats-${i}`).textContent = `${ch.current.toFixed(2)} A | ${ch.temp.toFixed(1)} °C`;
+
+            const isFlowing = ch.active && duty > 0.02;
+            statusLeds[i].material.emissive.setHex(isFlowing ? 0x10b981 : 0x000000);
+
+            const heatRatio = Math.min(Math.max((ch.temp - 28) / 45, 0), 1);
+            mosfetTabs[i].material.color.setRGB(0.6 + heatRatio * 0.4, 0.65 - heatRatio * 0.45, 0.7 - heatRatio * 0.6);
+
+            if (isFlowing) {
+                loadRotors[i].rotation.y += (state.vdd / 12) * duty * 0.35;
             }
         });
 
-        // Simulate live data updates
-        setInterval(() => {
-            const newVal = Math.floor(300 + Math.random() * 50);
-            document.getElementById('current-metric').innerHTML = `${newVal} <span class="text-xs text-slate-400">mA</span>`;
-            
+        document.getElementById('kpi-current').textContent = `${totalCurrent.toFixed(2)} A`;
+        document.getElementById('kpi-power').textContent = `${(totalCurrent * state.vdd).toFixed(1)} W`;
+        document.getElementById('kpi-temp').textContent = `${maxTemp.toFixed(1)} °C`;
+        document.getElementById('kpi-loss').textContent = `${(totalRdsLoss * 1000).toFixed(1)} mW`;
+
+        if (time - lastChartUpdate > 300) {
+            lastChartUpdate = time;
             telemetryChart.data.datasets[0].data.shift();
-            telemetryChart.data.datasets[0].data.push(newVal);
-            telemetryChart.update('none');
-        }, 1500);
-    </script>
+            telemetryChart.data.datasets[0].data.push(totalCurrent.toFixed(2));
+            telemetryChart.data.datasets[1].data.shift();
+            telemetryChart.data.datasets[1].data.push(maxTemp.toFixed(1));
+            telemetryChart.update();
+
+            barChart.data.datasets[0].data = state.channels.map(c => c.current.toFixed(2));
+            barChart.update();
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    animate(0);
+</script>
 </body>
 </html>
