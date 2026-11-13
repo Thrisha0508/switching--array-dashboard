@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arduino Uno + 4-Channel IRFZ44N Digital Twin</title>
+    <title>Arduino Uno + IRFZ44N Digital Twin | Pro Telemetry & Auto-Trip</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -26,52 +26,64 @@
             background: var(--panel-bg); border-bottom: 1px solid var(--border-color);
             padding: 12px 24px; display: flex; justify-content: space-between; align-items: center;
         }
-        .title-group h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: 0.5px; }
-        .title-group span { font-size: 0.8rem; color: var(--text-muted); }
-        .header-actions { display: flex; gap: 12px; align-items: center; }
+        .title-group h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: 0.5px; }
+        .title-group span { font-size: 0.78rem; color: var(--text-muted); }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
         .status-badge {
-            padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;
+            padding: 6px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600;
             background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green);
         }
-        .btn-connect {
-            background: var(--accent-blue); color: white; border: none; padding: 8px 16px;
-            border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; transition: 0.2s;
+        .btn {
+            border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600;
+            cursor: pointer; font-size: 0.82rem; transition: 0.2s; color: white;
         }
+        .btn-connect { background: var(--accent-blue); }
         .btn-connect:hover { background: #2563eb; }
+        .btn-export { background: #059669; }
+        .btn-export:hover { background: #047857; }
+        .btn-reset { background: var(--accent-red); padding: 5px 12px; margin-left: auto; }
+        .btn-reset:hover { background: #dc2626; }
+
+        /* Auto-Trip Fault Banner */
+        #trip-banner {
+            background: rgba(239, 68, 68, 0.25); border-bottom: 2px solid var(--accent-red);
+            padding: 10px 24px; font-size: 0.85rem; color: #fecaca; display: none; align-items: center; gap: 12px;
+        }
 
         .main-grid {
-            display: grid; grid-template-columns: 320px 1fr 360px; gap: 16px;
-            padding: 16px; height: calc(100vh - 60px);
+            display: grid; grid-template-columns: 320px 1fr 370px; gap: 16px;
+            padding: 16px; flex: 1; overflow: hidden;
         }
         .panel {
             background: var(--panel-bg); border: 1px solid var(--border-color);
             border-radius: 10px; padding: 16px; display: flex; flex-direction: column; overflow-y: auto;
         }
         .panel-title {
-            font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;
-            color: var(--text-muted); margin-bottom: 14px; font-weight: 700;
-            border-bottom: 1px solid var(--border-color); padding-bottom: 8px;
+            font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--text-muted); margin-bottom: 12px; font-weight: 700;
+            border-bottom: 1px solid var(--border-color); padding-bottom: 6px;
+            display: flex; justify-content: space-between; align-items: center;
         }
 
-        .control-group { margin-bottom: 18px; }
+        .control-group { margin-bottom: 16px; }
         .control-header { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; }
         input[type="range"] { width: 100%; accent-color: var(--accent-blue); cursor: pointer; }
         
         .channel-card {
             background: #1a2234; border: 1px solid #2d3748; border-radius: 8px;
-            padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
         }
-        .channel-info h4 { font-size: 0.9rem; margin-bottom: 2px; }
-        .channel-info p { font-size: 0.75rem; color: var(--text-muted); }
+        .channel-info h4 { font-size: 0.88rem; margin-bottom: 2px; }
+        .channel-info p { font-size: 0.74rem; color: var(--text-muted); }
         
-        .switch { position: relative; display: inline-block; width: 46px; height: 24px; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 22px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider {
             position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
             background-color: #374151; transition: .3s; border-radius: 24px;
         }
         .slider:before {
-            position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+            position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px;
             background-color: white; transition: .3s; border-radius: 50%;
         }
         input:checked + .slider { background-color: var(--accent-green); }
@@ -80,19 +92,20 @@
         .viewport-container { position: relative; padding: 0; overflow: hidden; }
         #canvas-3d { width: 100%; height: 100%; display: block; }
         .viewport-overlay {
-            position: absolute; bottom: 12px; left: 12px; background: rgba(17, 24, 39, 0.85);
-            padding: 8px 12px; border-radius: 6px; font-size: 0.75rem; color: var(--text-muted);
-            border: 1px solid var(--border-color); pointer-events: none;
+            position: absolute; bottom: 12px; left: 12px; background: rgba(17, 24, 39, 0.88);
+            padding: 8px 12px; border-radius: 6px; font-size: 0.74rem; color: var(--text-muted);
+            border: 1px solid var(--border-color); pointer-events: none; line-height: 1.5;
         }
+        .legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 
-        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-        .kpi-card { background: #1a2234; padding: 12px; border-radius: 8px; border: 1px solid #2d3748; }
-        .kpi-label { font-size: 0.75rem; color: var(--text-muted); }
-        .kpi-value { font-size: 1.3rem; font-weight: 700; margin-top: 4px; color: var(--accent-blue); }
-        .chart-box { flex: 1; min-height: 180px; position: relative; margin-bottom: 12px; }
+        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+        .kpi-card { background: #1a2234; padding: 10px 12px; border-radius: 8px; border: 1px solid #2d3748; }
+        .kpi-label { font-size: 0.72rem; color: var(--text-muted); }
+        .kpi-value { font-size: 1.15rem; font-weight: 700; margin-top: 3px; color: var(--accent-blue); }
+        .chart-box { flex: 1; min-height: 145px; position: relative; margin-bottom: 10px; }
         .serial-log {
             background: #070a11; border: 1px solid #1f2937; border-radius: 6px;
-            padding: 8px; font-family: monospace; font-size: 0.72rem; height: 90px;
+            padding: 8px; font-family: monospace; font-size: 0.7rem; height: 75px;
             overflow-y: auto; color: #10b981;
         }
     </style>
@@ -101,14 +114,20 @@
 
 <header>
     <div class="title-group">
-        <h1>ARDUINO UNO + 4-CHANNEL IRFZ44N DIGITAL TWIN</h1>
-        <span>Low-Side Power Switching Array Telemetry Dashboard</span>
+        <h1>ARDUINO UNO + IRFZ44N SWITCHING ARRAY DIGITAL TWIN</h1>
+        <span>Real-Time Electron Flow, Conduction Loss Analytics & Auto-Trip Protection</span>
     </div>
     <div class="header-actions">
-        <span id="mode-badge" class="status-badge">● SIMULATION MODE ACTIVE</span>
-        <button id="connect-serial" class="btn-connect">🔌 Connect Arduino (USB)</button>
+        <span id="mode-badge" class="status-badge">● SIMULATION ACTIVE</span>
+        <button id="export-csv" class="btn btn-export">📥 Export CSV Log (<span id="log-count">0</span>)</button>
+        <button id="connect-serial" class="btn btn-connect">🔌 Connect Arduino (USB)</button>
     </div>
 </header>
+
+<div id="trip-banner">
+    <span>🚨 <strong>AUTO-TRIP FAULT TRIGGERED:</strong> MOSFET temperature exceeded 85°C thermal safety limit! PWM automatically cut to 0% to prevent IRFZ44N damage.</span>
+    <button id="reset-trip" class="btn btn-reset">🔄 Reset Protection</button>
+</div>
 
 <div class="main-grid">
     <!-- Left Panel: Controls -->
@@ -125,33 +144,34 @@
 
         <div class="control-group">
             <div class="control-header">
-                <span>Arduino PWM Duty Cycle (Pin 3/5/6/9)</span>
+                <span>Arduino PWM Duty Cycle</span>
                 <strong id="pwm-val">75 %</strong>
             </div>
             <input type="range" id="pwm-slider" min="0" max="100" step="1" value="75">
         </div>
 
-        <div class="panel-title" style="margin-top: 8px;">IRFZ44N MOSFET Channels</div>
+        <div class="panel-title">Mixed Load Channels</div>
         <div id="channel-controls"></div>
 
-        <div class="panel-title" style="margin-top: 12px;">Arduino Serial Monitor Log</div>
+        <div class="panel-title" style="margin-top: 6px;">System & Serial Log</div>
         <div class="serial-log" id="serial-log">
-            > System initialized.<br>
-            > Ready for Arduino Uno serial stream...
+            > Digital Twin initialized.<br>
+            > Auto-Trip threshold set to 85.0°C.
         </div>
     </div>
 
-    <!-- Center Panel: 3D Hardware Model (Arduino Uno + MOSFET Array) -->
+    <!-- Center Panel: 3D Hardware Model -->
     <div class="panel viewport-container">
         <div id="canvas-3d"></div>
         <div class="viewport-overlay">
-            🖱️ Left-Click: Rotate | Right-Click: Pan | Scroll: Zoom | Visualizing Arduino Uno & MOSFET Power Stage
+            <div><span class="legend-dot" style="background:#10b981;"></span><strong>Green Flow:</strong> Arduino 5V PWM Gate Drive</div>
+            <div><span class="legend-dot" style="background:#38bdf8;"></span><strong>Cyan Flow:</strong> Load Current (V<sub>CC</sub> &rarr; Motor/LED &rarr; Drain &rarr; GND)</div>
         </div>
     </div>
 
-    <!-- Right Panel: Telemetry -->
+    <!-- Right Panel: Telemetry & Efficiency -->
     <div class="panel">
-        <div class="panel-title">Electrical & Thermal Metrics</div>
+        <div class="panel-title">Electrical & Thermal Analytics</div>
         
         <div class="kpi-grid">
             <div class="kpi-card">
@@ -159,25 +179,33 @@
                 <div class="kpi-value" id="kpi-current">0.00 A</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Total Power Dissipation</div>
+                <div class="kpi-label">Output Load Power</div>
                 <div class="kpi-value" id="kpi-power" style="color: var(--accent-amber);">0.0 W</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Max MOSFET Temp</div>
-                <div class="kpi-value" id="kpi-temp" style="color: var(--accent-green);">28.5 °C</div>
+                <div class="kpi-label">Peak MOSFET Temp</div>
+                <div class="kpi-value" id="kpi-temp" style="color: var(--accent-green);">28.0 °C</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Conduction Loss (R<sub>DS</sub>)</div>
-                <div class="kpi-value" id="kpi-loss" style="color: #a855f7;">0.00 W</div>
+                <div class="kpi-label">Protection Status</div>
+                <div class="kpi-value" id="kpi-status" style="font-size: 0.95rem; color: var(--accent-green);">SAFE (ARMED)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">R<sub>DS(on)</sub> Conduction Loss</div>
+                <div class="kpi-value" id="kpi-loss" style="font-size: 1.0rem; color: #c084fc;">0.0 mW</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Switching Efficiency (&eta;)</div>
+                <div class="kpi-value" id="kpi-eff" style="font-size: 1.0rem; color: #38bdf8;">99.8 %</div>
             </div>
         </div>
 
-        <div class="panel-title">Real-Time Waveform</div>
+        <div class="panel-title">Current & Thermal Waveform</div>
         <div class="chart-box">
             <canvas id="telemetryChart"></canvas>
         </div>
 
-        <div class="panel-title">Channel Current Distribution</div>
+        <div class="panel-title">Channel Load Distribution</div>
         <div class="chart-box">
             <canvas id="barChart"></canvas>
         </div>
@@ -188,13 +216,15 @@
     const state = {
         vdd: 12.0,
         pwm: 75,
+        isTripped: false,
         isHardwareConnected: false,
         serialWriter: null,
+        csvLogs: [["Timestamp", "Bus_Voltage_V", "PWM_Pct", "CH1_A", "CH2_A", "CH3_A", "CH4_A", "Max_Temp_C", "Conduction_Loss_mW", "Status"]],
         channels: [
-            { id: 1, name: "CH1: Load 1 (Motor)", loadResistance: 6.0, active: true, current: 0, temp: 28 },
-            { id: 2, name: "CH2: Load 2 (Fan)", loadResistance: 6.0, active: true, current: 0, temp: 28 },
-            { id: 3, name: "CH3: Load 3 (Solenoid)", loadResistance: 8.0, active: false, current: 0, temp: 27 },
-            { id: 4, name: "CH4: Load 4 (Heater)", loadResistance: 10.0, active: true, current: 0, temp: 28 }
+            { id: 1, name: "CH1: DC Motor A", type: "motor", loadResistance: 7.5, active: true, current: 0, temp: 28 },
+            { id: 2, name: "CH2: DC Motor B", type: "motor", loadResistance: 7.5, active: true, current: 0, temp: 28 },
+            { id: 3, name: "CH3: High-Power LED 1", type: "led", loadResistance: 14.0, active: true, current: 0, temp: 27 },
+            { id: 4, name: "CH4: High-Power LED 2", type: "led", loadResistance: 14.0, active: false, current: 0, temp: 27 }
         ]
     };
 
@@ -217,18 +247,35 @@
 
     function toggleChannel(idx, isChecked) {
         state.channels[idx].active = isChecked;
-        logSerial(`Arduino Command -> CH${idx + 1} set to ${isChecked ? 'HIGH' : 'LOW'}`);
+        logSerial(`CMD -> ${state.channels[idx].name} ${isChecked ? 'ON' : 'OFF'}`);
         sendSerialCommand();
     }
+
+    const pwmSlider = document.getElementById('pwm-slider');
+    const pwmValText = document.getElementById('pwm-val');
 
     document.getElementById('vdd-slider').addEventListener('input', (e) => {
         state.vdd = parseFloat(e.target.value);
         document.getElementById('vdd-val').textContent = `${state.vdd.toFixed(1)} V`;
     });
 
-    document.getElementById('pwm-slider').addEventListener('input', (e) => {
+    pwmSlider.addEventListener('input', (e) => {
+        if (state.isTripped) {
+            e.target.value = 0;
+            return;
+        }
         state.pwm = parseInt(e.target.value);
-        document.getElementById('pwm-val').textContent = `${state.pwm} %`;
+        pwmValText.textContent = `${state.pwm} %`;
+        sendSerialCommand();
+    });
+
+    document.getElementById('reset-trip').addEventListener('click', () => {
+        state.isTripped = false;
+        state.pwm = 40;
+        pwmSlider.value = 40;
+        pwmValText.textContent = "40 %";
+        document.getElementById('trip-banner').style.display = "none";
+        logSerial("PROTECTION RESET -> System re-armed at 40% PWM.");
         sendSerialCommand();
     });
 
@@ -238,22 +285,31 @@
         log.scrollTop = log.scrollHeight;
     }
 
-    // --- WEB SERIAL FOR ARDUINO UNO ---
+    // --- CSV EXPORT ---
+    document.getElementById('export-csv').addEventListener('click', () => {
+        const csvContent = "data:text/csv;charset=utf-8," + state.csvLogs.map(r => r.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `IRFZ44N_Telemetry_${new Date().toISOString().slice(0,19).replace(/:/g,"-")}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        logSerial(`Exported ${state.csvLogs.length - 1} telemetry rows to CSV.`);
+    });
+
+    // --- WEB SERIAL API ---
     document.getElementById('connect-serial').addEventListener('click', async () => {
         if (!("serial" in navigator)) {
-            alert("Web Serial API not supported. Use Google Chrome or MS Edge.");
+            alert("Web Serial not supported. Use Google Chrome or MS Edge.");
             return;
         }
         try {
             const port = await navigator.serial.requestPort();
-            await port.open({ baudRate: 9600 }); // Standard Arduino baud rate
+            await port.open({ baudRate: 9600 });
             state.isHardwareConnected = true;
-            
-            const badge = document.getElementById('mode-badge');
-            badge.textContent = "● ARDUINO UNO CONNECTED";
-            badge.style.borderColor = "#3b82f6";
-            badge.style.color = "#3b82f6";
-            logSerial("Connected to Arduino Uno via USB Serial!");
+            document.getElementById('mode-badge').textContent = "● ARDUINO UNO CONNECTED";
+            logSerial("Connected to Arduino Uno via USB!");
 
             const textEncoder = new TextEncoderStream();
             textEncoder.readable.pipeTo(port.writable);
@@ -284,7 +340,7 @@
                 }
             }
         } catch (err) {
-            logSerial("Serial connection failed or cancelled.");
+            logSerial("Serial connection failed.");
         }
     });
 
@@ -295,13 +351,13 @@
         }
     }
 
-    // --- THREE.JS HARDWARE SCENE (ARDUINO UNO + MOSFET MODULE) ---
+    // --- THREE.JS SCENE ---
     const container = document.getElementById('canvas-3d');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0b0f19);
 
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-    camera.position.set(-2, 10, 13);
+    camera.position.set(0, 12, 15);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
@@ -310,108 +366,116 @@
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
     dirLight.position.set(10, 20, 10);
     scene.add(dirLight);
 
-    // 1. ARDUINO UNO BOARD (Classic Blue PCB)
-    const unoGeo = new THREE.BoxGeometry(4.5, 0.2, 3.4);
-    const unoMat = new THREE.MeshStandardMaterial({ color: 0x006699, roughness: 0.5 });
-    const unoBoard = new THREE.Mesh(unoGeo, unoMat);
-    unoBoard.position.set(-3.5, 0.1, 0);
+    // Arduino Uno Board
+    const unoBoard = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.2, 3.4), new THREE.MeshStandardMaterial({ color: 0x006699 }));
+    unoBoard.position.set(-4.2, 0.1, 0);
     scene.add(unoBoard);
 
-    // ATmega328P Chip on Arduino
-    const mcuChipGeo = new THREE.BoxGeometry(1.2, 0.1, 1.2);
-    const mcuChipMat = new THREE.MeshStandardMaterial({ color: 0x111827 });
-    const mcuChip = new THREE.Mesh(mcuChipGeo, mcuChipMat);
-    mcuChip.position.set(-3.5, 0.22, 0);
-    scene.add(mcuChip);
-
-    // USB Jack & Power Barrel Jack on Uno
-    const usbGeo = new THREE.BoxGeometry(0.8, 0.4, 0.8);
-    const metalMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.9 });
-    const usbJack = new THREE.Mesh(usbGeo, metalMat);
-    usbJack.position.set(-5.3, 0.3, -0.9);
-    scene.add(usbJack);
-
-    const barrelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.7, 16);
-    const barrel = new THREE.Mesh(barrelGeo, new THREE.MeshStandardMaterial({ color: 0x1f2937 }));
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(-5.3, 0.3, 0.9);
-    scene.add(barrel);
-
-    // 2. 4-CHANNEL MOSFET DRIVER ARRAY BOARD (Black PCB)
-    const mosfetPcbGeo = new THREE.BoxGeometry(4.8, 0.2, 6.2);
-    const mosfetPcbMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.4 });
-    const mosfetPcb = new THREE.Mesh(mosfetPcbGeo, mosfetPcbMat);
-    mosfetPcb.position.set(2.2, 0.1, 0);
+    // MOSFET Module PCB
+    const mosfetPcb = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.2, 6.2), new THREE.MeshStandardMaterial({ color: 0x111827 }));
+    mosfetPcb.position.set(0.8, 0.1, 0);
     scene.add(mosfetPcb);
+
+    // VCC Bus Bar & GND Rail
+    const vccRail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 6.2), new THREE.MeshStandardMaterial({ color: 0xdc2626 }));
+    vccRail.position.set(6.4, 0.15, 0);
+    scene.add(vccRail);
+
+    const gndRail = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.2, 0.35), new THREE.MeshStandardMaterial({ color: 0x374151 }));
+    gndRail.position.set(0.0, 0.12, 3.6);
+    scene.add(gndRail);
 
     const mosfetTabs = [];
     const statusLeds = [];
-    const loadRotors = [];
-    const jumperWires = [];
+    const loadObjects = [];
+    const channelFlows = [];
 
-    // Build 4 IRFZ44N MOSFETs + Terminal Blocks + Loads
-    for (let i = 0; i < 4; i++) {
+    state.channels.forEach((ch, i) => {
         const zPos = -1.9 + i * 1.25;
 
-        // Jumper Wire from Arduino to MOSFET Gate
-        const curve = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(-1.3, 0.2, -1.2 + i * 0.5),
-            new THREE.Vector3(0.0, 1.2, -0.5 + i * 0.3),
-            new THREE.Vector3(0.5, 0.25, zPos - 0.3)
-        ]);
-        const wireGeo = new THREE.TubeGeometry(curve, 20, 0.03, 8, false);
-        const wireColors = [0xef4444, 0x3b82f6, 0xf59e0b, 0x10b981];
-        const wireMat = new THREE.MeshStandardMaterial({ color: wireColors[i] });
-        const wire = new THREE.Mesh(wireGeo, wireMat);
-        scene.add(wire);
-
-        // TO-220 MOSFET Package (Black Body)
-        const bodyGeo = new THREE.BoxGeometry(0.4, 0.85, 0.9);
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1f2937 });
-        const body = new THREE.Mesh(bodyGeo, bodyMat);
-        body.position.set(1.5, 0.65, zPos);
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.85, 0.9), new THREE.MeshStandardMaterial({ color: 0x1f2937 }));
+        body.position.set(1.2, 0.65, zPos);
         scene.add(body);
 
-        // Metallic Heatsink Tab (Dynamic Thermal Color)
-        const tabGeo = new THREE.BoxGeometry(0.12, 1.2, 0.9);
-        const tabMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.85, roughness: 0.2 });
-        const tab = new THREE.Mesh(tabGeo, tabMat);
-        tab.position.set(1.75, 0.8, zPos);
+        const tab = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, 0.9), new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.85 }));
+        tab.position.set(1.45, 0.8, zPos);
         scene.add(tab);
         mosfetTabs.push(tab);
 
-        // Gate Status LED
-        const ledGeo = new THREE.SphereGeometry(0.1, 16, 16);
-        const ledMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x000000 });
-        const led = new THREE.Mesh(ledGeo, ledMat);
-        led.position.set(0.6, 0.25, zPos);
-        scene.add(led);
-        statusLeds.push(led);
+        const ledIndicator = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x000000 }));
+        ledIndicator.position.set(0.3, 0.25, zPos);
+        scene.add(ledIndicator);
+        statusLeds.push(ledIndicator);
 
-        // Load Actuator / Motor / Fan on the Right
-        const loadHousing = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.55, 0.55, 0.3, 24),
-            new THREE.MeshStandardMaterial({ color: 0x374151 })
-        );
-        loadHousing.position.set(4.8, 0.3, zPos);
-        scene.add(loadHousing);
+        if (ch.type === "motor") {
+            const motorHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.4, 24), new THREE.MeshStandardMaterial({ color: 0x374151 }));
+            motorHousing.position.set(4.4, 0.3, zPos);
+            scene.add(motorHousing);
 
-        const rotorGroup = new THREE.Group();
-        rotorGroup.position.set(4.8, 0.46, zPos);
-        const bladeMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
-        for (let b = 0; b < 4; b++) {
-            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.03, 0.14), bladeMat);
-            blade.rotation.y = (b * Math.PI) / 4;
-            rotorGroup.add(blade);
+            const rotor = new THREE.Group();
+            rotor.position.set(4.4, 0.52, zPos);
+            for (let b = 0; b < 4; b++) {
+                const blade = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.03, 0.14), new THREE.MeshStandardMaterial({ color: 0x3b82f6 }));
+                blade.rotation.y = (b * Math.PI) / 4;
+                rotor.add(blade);
+            }
+            scene.add(rotor);
+            loadObjects.push({ type: "motor", mesh: rotor });
+        } else {
+            const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.2, 16), new THREE.MeshStandardMaterial({ color: 0x9ca3af }));
+            lampBase.position.set(4.4, 0.2, zPos);
+            scene.add(lampBase);
+
+            const ledBulb = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0x000000 }));
+            ledBulb.position.set(4.4, 0.5, zPos);
+            scene.add(ledBulb);
+            loadObjects.push({ type: "led", mesh: ledBulb });
         }
-        scene.add(rotorGroup);
-        loadRotors.push(rotorGroup);
-    }
+
+        const gateCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(-2.1, 0.25, -1.0 + i * 0.65),
+            new THREE.Vector3(-0.6, 0.9, zPos),
+            new THREE.Vector3(1.0, 0.25, zPos - 0.25)
+        ]);
+        scene.add(new THREE.Mesh(
+            new THREE.TubeGeometry(gateCurve, 20, 0.025, 8, false),
+            new THREE.MeshStandardMaterial({ color: 0x065f46 })
+        ));
+
+        const powerCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(6.4, 0.25, zPos),
+            new THREE.Vector3(4.4, 0.35, zPos),
+            new THREE.Vector3(2.8, 0.7, zPos),
+            new THREE.Vector3(1.2, 0.3, zPos),
+            new THREE.Vector3(1.2, 0.25, zPos + 0.3),
+            new THREE.Vector3(1.2, 0.2, 3.6)
+        ]);
+        scene.add(new THREE.Mesh(
+            new THREE.TubeGeometry(powerCurve, 36, 0.03, 8, false),
+            new THREE.MeshStandardMaterial({ color: 0x1e3a8a })
+        ));
+
+        const gateParticles = [];
+        for (let p = 0; p < 3; p++) {
+            const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+            scene.add(sphere);
+            gateParticles.push({ mesh: sphere, offset: p / 3 });
+        }
+
+        const powerParticles = [];
+        for (let p = 0; p < 6; p++) {
+            const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+            scene.add(sphere);
+            powerParticles.push({ mesh: sphere, offset: p / 6 });
+        }
+
+        channelFlows.push({ gateCurve, powerCurve, gateParticles, powerParticles });
+    });
 
     // --- CHARTS ---
     const ctxLine = document.getElementById('telemetryChart').getContext('2d');
@@ -435,11 +499,11 @@
     const barChart = new Chart(ctxBar, {
         type: 'bar',
         data: {
-            labels: ['CH1', 'CH2', 'CH3', 'CH4'],
+            labels: ['CH1 (Motor)', 'CH2 (Motor)', 'CH3 (LED)', 'CH4 (LED)'],
             datasets: [{
                 label: 'Current (A)',
                 data: [0, 0, 0, 0],
-                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#a855f7']
+                backgroundColor: ['#3b82f6', '#3b82f6', '#ef4444', '#ef4444']
             }]
         },
         options: {
@@ -449,7 +513,6 @@
         }
     });
 
-    // --- ANIMATION LOOP ---
     let lastChartUpdate = 0;
 
     function animate(time) {
@@ -459,16 +522,18 @@
         let totalCurrent = 0;
         let maxTemp = 27.0;
         let totalRdsLoss = 0;
-        const rdsOn = 0.0175;
+        const rdsOn = 0.0175; // IRFZ44N datasheet Rds(on) = 17.5 mOhm
         const duty = state.pwm / 100;
 
         state.channels.forEach((ch, i) => {
             if (!state.isHardwareConnected) {
-                const targetCurrent = ch.active ? (state.vdd / ch.loadResistance) * duty : 0;
+                const targetCurrent = (ch.active && !state.isTripped) ? (state.vdd / ch.loadResistance) * duty : 0;
                 ch.current += (targetCurrent - ch.current) * 0.15;
-                const powerLoss = Math.pow(ch.current, 2) * rdsOn * 25;
-                const targetTemp = 27.5 + powerLoss * 18;
-                ch.temp += (targetTemp - ch.temp) * 0.05;
+                
+                // Thermal rise scaled so 24V @ 100% PWM crosses 85°C to demonstrate Auto-Trip safety
+                const heatInput = Math.pow(ch.current, 2) * rdsOn * 320;
+                const targetTemp = 27.5 + heatInput;
+                ch.temp += (targetTemp - ch.temp) * 0.04;
             }
 
             totalCurrent += ch.current;
@@ -477,23 +542,72 @@
 
             document.getElementById(`ch-stats-${i}`).textContent = `${ch.current.toFixed(2)} A | ${ch.temp.toFixed(1)} °C`;
 
-            const isFlowing = ch.active && duty > 0.02;
+            const isFlowing = ch.active && duty > 0.02 && !state.isTripped;
             statusLeds[i].material.emissive.setHex(isFlowing ? 0x10b981 : 0x000000);
 
-            const heatRatio = Math.min(Math.max((ch.temp - 28) / 45, 0), 1);
+            const heatRatio = Math.min(Math.max((ch.temp - 28) / 57, 0), 1);
             mosfetTabs[i].material.color.setRGB(0.6 + heatRatio * 0.4, 0.65 - heatRatio * 0.45, 0.7 - heatRatio * 0.6);
 
-            if (isFlowing) {
-                loadRotors[i].rotation.y += (state.vdd / 12) * duty * 0.35;
+            if (loadObjects[i].type === "motor") {
+                if (isFlowing) loadObjects[i].mesh.rotation.y += (state.vdd / 12) * duty * 0.4;
+            } else {
+                const glowIntensity = isFlowing ? duty * 0.95 : 0;
+                loadObjects[i].mesh.material.emissive.setRGB(glowIntensity, glowIntensity * 0.15, 0);
             }
+
+            const flow = channelFlows[i];
+            const flowSpeed = isFlowing ? (0.004 + (ch.current * 0.006)) : 0;
+
+            flow.gateParticles.forEach(p => {
+                p.mesh.visible = isFlowing;
+                if (isFlowing) {
+                    p.offset = (p.offset + 0.015) % 1;
+                    p.mesh.position.copy(flow.gateCurve.getPointAt(p.offset));
+                }
+            });
+
+            flow.powerParticles.forEach(p => {
+                p.mesh.visible = isFlowing;
+                if (isFlowing) {
+                    p.offset = (p.offset + flowSpeed) % 1;
+                    p.mesh.position.copy(flow.powerCurve.getPointAt(p.offset));
+                }
+            });
         });
 
+        // --- AUTO-TRIP SAFETY PROTECTION (> 85.0 °C) ---
+        const statusEl = document.getElementById('kpi-status');
+        if (maxTemp > 85.0 && !state.isTripped) {
+            state.isTripped = true;
+            state.pwm = 0;
+            pwmSlider.value = 0;
+            pwmValText.textContent = "0 % (TRIPPED)";
+            document.getElementById('trip-banner').style.display = "flex";
+            logSerial("ALERT: AUTO-TRIP! Temp > 85°C. PWM shut down.");
+            sendSerialCommand();
+        }
+
+        if (state.isTripped) {
+            statusEl.textContent = "TRIPPED (FAULT)";
+            statusEl.style.color = "var(--accent-red)";
+        } else if (maxTemp > 65.0) {
+            statusEl.textContent = "WARNING (HOT)";
+            statusEl.style.color = "var(--accent-amber)";
+        } else {
+            statusEl.textContent = "SAFE (ARMED)";
+            statusEl.style.color = "var(--accent-green)";
+        }
+
+        const totalPower = totalCurrent * state.vdd;
+        const efficiency = totalPower > 0.05 ? Math.max(0, ((totalPower - totalRdsLoss) / totalPower) * 100) : 100;
+
         document.getElementById('kpi-current').textContent = `${totalCurrent.toFixed(2)} A`;
-        document.getElementById('kpi-power').textContent = `${(totalCurrent * state.vdd).toFixed(1)} W`;
+        document.getElementById('kpi-power').textContent = `${totalPower.toFixed(1)} W`;
         document.getElementById('kpi-temp').textContent = `${maxTemp.toFixed(1)} °C`;
         document.getElementById('kpi-loss').textContent = `${(totalRdsLoss * 1000).toFixed(1)} mW`;
+        document.getElementById('kpi-eff').textContent = `${efficiency.toFixed(2)} %`;
 
-        if (time - lastChartUpdate > 300) {
+        if (time - lastChartUpdate > 500) {
             lastChartUpdate = time;
             telemetryChart.data.datasets[0].data.shift();
             telemetryChart.data.datasets[0].data.push(totalCurrent.toFixed(2));
@@ -503,6 +617,23 @@
 
             barChart.data.datasets[0].data = state.channels.map(c => c.current.toFixed(2));
             barChart.update();
+
+            // Record row for CSV Export
+            if (state.csvLogs.length < 2000) {
+                state.csvLogs.push([
+                    new Date().toLocaleTimeString(),
+                    state.vdd.toFixed(1),
+                    state.pwm,
+                    state.channels[0].current.toFixed(2),
+                    state.channels[1].current.toFixed(2),
+                    state.channels[2].current.toFixed(2),
+                    state.channels[3].current.toFixed(2),
+                    maxTemp.toFixed(1),
+                    (totalRdsLoss * 1000).toFixed(1),
+                    state.isTripped ? "TRIPPED" : "SAFE"
+                ]);
+                document.getElementById('log-count').textContent = state.csvLogs.length - 1;
+            }
         }
 
         renderer.render(scene, camera);
